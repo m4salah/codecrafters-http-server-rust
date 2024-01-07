@@ -33,7 +33,7 @@ fn main() {
                 let path = spli.next().unwrap();
 
                 if path.starts_with("/echo/") {
-                    let echo_str = path.split('/').skip(2).next().unwrap();
+                    let echo_str = path.split("/echo/").skip(1).next().unwrap();
                     let mut response = String::from("HTTP/1.1 200 OK\r\n");
                     response.push_str("Content-Type: text/plain\r\n");
                     response.push_str(&format!("Content-Length: {}\r\n", echo_str.len()));
