@@ -20,25 +20,30 @@ fn main() {
             Ok(mut stream) => {
                 let mut buffer = [0u8; 1024];
                 // reading from stream to the buffer
-                stream.read(&mut buffer).unwrap();
+                stream.read(&mut buffer).expect("ERROR: reading stream");
                 let string_content = String::from_utf8_lossy(&buffer);
 
                 println!("{}", string_content);
-                let mut spli = string_content.split(' ').skip(1).take(1);
+                let mut spli = string_content.split(' ').skip(1);
 
                 // &str vs String
                 // &str is static size string in stack
                 // String dynamic string in the heap
-                let path = spli.next().unwrap();
+                let path = spli.next().expect("Error: getting next");
 
                 if path.starts_with("/echo/") {
-                    let echo_str = path.split("/echo/").skip(1).next().unwrap();
-                    let mut response = String::from("HTTP/1.1 200 OK\r\n");
-                    response.push_str("Content-Type: text/plain\r\n");
-                    response.push_str(&format!("Content-Length: {}\r\n", echo_str.len()));
-                    response.push_str(&echo_str);
-                    response.push_str("\r\n\r\n");
-                    stream.write(response.as_bytes()).unwrap();
+                    let echo_str = path
+                        .split("/echo/")
+                        .skip(1)
+                        .next()
+                        .expect("ERROR: echo_str");
+
+                    let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n", echo_str.as_bytes().len(), echo_str);
+
+                    println!("response: {}", response);
+                    stream
+                        .write(response.as_bytes())
+                        .expect("Error: writing to the stream");
                 } else if path != "/" {
                     stream.write(not_found_response.as_bytes()).unwrap();
                     println!("accepted new connection");
