@@ -1,8 +1,10 @@
 // Uncomment this block to pass the first stage
 use std::{
     collections::HashMap,
+    env, fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
+    path::PathBuf,
     thread,
 };
 
@@ -44,7 +46,38 @@ fn handle_connection(mut stream: TcpStream) {
     // String dynamic string in the heap
     let path = spli.next().expect("Error: getting next");
 
-    if path == "/user-agent" {
+    let mut folder_path = String::new();
+    let mut found = false;
+    for argument in env::args() {
+        if argument == "--directory" {
+            found = true
+        } else if found {
+            folder_path = argument;
+        }
+    }
+    println!("{}", folder_path);
+    if path.starts_with("/files/") {
+        let filename = path.trim_start_matches("/files/");
+        let mut path = PathBuf::new();
+        path.push(folder_path);
+        path.push(filename);
+        match fs::read_to_string(path) {
+            Ok(file_str) => {
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n{}\r\n",
+                    file_str.as_bytes().len(),
+                    file_str
+                );
+                stream
+                    .write(response.as_bytes())
+                    .expect("Error: writing to the stream");
+            }
+            Err(_) => {
+                stream.write(not_found_response.as_bytes()).unwrap();
+                println!("accepted new connection");
+            }
+        }
+    } else if path == "/user-agent" {
         let headers: HashMap<&str, &str> = string_content
             .lines()
             .skip(1)
@@ -63,11 +96,7 @@ fn handle_connection(mut stream: TcpStream) {
             .write(response.as_bytes())
             .expect("Error: writing to the stream");
     } else if path.starts_with("/echo/") {
-        let echo_str = path
-            .split("/echo/")
-            .skip(1)
-            .next()
-            .expect("ERROR: echo_str");
+        let echo_str = path.trim_start_matches("/echo/");
 
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n",
