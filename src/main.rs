@@ -1,5 +1,6 @@
 // Uncomment this block to pass the first stage
 use std::{
+    collections::HashMap,
     io::{Read, Write},
     net::TcpListener,
 };
@@ -31,7 +32,21 @@ fn main() {
                 // String dynamic string in the heap
                 let path = spli.next().expect("Error: getting next");
 
-                if path.starts_with("/echo/") {
+                if path == "/user-agent" {
+                    let headers: HashMap<&str, &str> = string_content
+                        .lines()
+                        .skip(1)
+                        .filter_map(|line| return line.split_once(": "))
+                        .collect();
+                    let user_agent = headers.get("User-Agent").unwrap();
+
+                    let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n", user_agent.as_bytes().len(), user_agent);
+
+                    println!("response: {}", response);
+                    stream
+                        .write(response.as_bytes())
+                        .expect("Error: writing to the stream");
+                } else if path.starts_with("/echo/") {
                     let echo_str = path
                         .split("/echo/")
                         .skip(1)
