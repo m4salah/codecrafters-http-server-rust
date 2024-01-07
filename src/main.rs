@@ -21,7 +21,6 @@ fn main() {
                 let mut buffer = [0u8; 1024];
                 // reading from stream to the buffer
                 stream.read(&mut buffer).unwrap();
-                println!("{:?}", buffer);
                 let string_content = String::from_utf8_lossy(&buffer);
 
                 println!("{}", string_content);
