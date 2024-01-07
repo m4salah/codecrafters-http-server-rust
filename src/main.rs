@@ -12,6 +12,9 @@ fn main() {
     //
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
+    let not_found_response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    let ok_response = "HTTP/1.1 404 Not Found\r\n\r\n";
+
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
@@ -22,11 +25,9 @@ fn main() {
                 let mut spli = string_content.split(' ');
                 spli.next().unwrap();
                 if spli.next().unwrap() != "/" {
-                    let ok_response = "HTTP/1.1 404 Not Found\r\n\r\n";
-                    stream.write(ok_response.as_bytes()).unwrap();
+                    stream.write(not_found_response.as_bytes()).unwrap();
                     println!("accepted new connection");
                 } else {
-                    let ok_response = "HTTP/1.1 200 OK\r\n\r\n";
                     stream.write(ok_response.as_bytes()).unwrap();
                     println!("accepted new connection");
                 }
