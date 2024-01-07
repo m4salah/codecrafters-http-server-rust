@@ -13,18 +13,34 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
     let not_found_response = "HTTP/1.1 404 Not Found\r\n\r\n";
-    let ok_response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    let ok_response = "HTTP/1.1 200 OK\r\n\r\n";
 
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
                 let mut buffer = [0u8; 1024];
+                // reading from stream to the buffer
                 stream.read(&mut buffer).unwrap();
+                println!("{:?}", buffer);
                 let string_content = String::from_utf8_lossy(&buffer);
 
-                let mut spli = string_content.split(' ');
-                spli.next().unwrap();
-                if spli.next().unwrap() != "/" {
+                println!("{}", string_content);
+                let mut spli = string_content.split(' ').skip(1).take(1);
+
+                // &str vs String
+                // &str is static size string in stack
+                // String dynamic string in the heap
+                let path = spli.next().unwrap();
+
+                if path.starts_with("/echo/") {
+                    let echo_str = path.split('/').skip(2).next().unwrap();
+                    let mut response = String::from("HTTP/1.1 200 OK\r\n");
+                    response.push_str("Content-Type: text/plain\r\n");
+                    response.push_str(&format!("Content-Length: {}\r\n", echo_str.len()));
+                    response.push_str(&echo_str);
+                    response.push_str("\r\n\r\n");
+                    stream.write(response.as_bytes()).unwrap();
+                } else if path != "/" {
                     stream.write(not_found_response.as_bytes()).unwrap();
                     println!("accepted new connection");
                 } else {
