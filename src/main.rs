@@ -1,7 +1,8 @@
 // Uncomment this block to pass the first stage
 use std::{
     collections::HashMap,
-    env, fs,
+    env,
+    fs::{self, File},
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::PathBuf,
@@ -39,27 +40,35 @@ fn handle_connection(mut stream: TcpStream) {
     let string_content = String::from_utf8_lossy(&buffer);
 
     println!("{}", string_content);
-    let mut spli = string_content.split(' ').skip(1);
+    let mut spli = string_content.split(' ');
 
     // &str vs String
     // &str is static size string in stack
     // String dynamic string in the heap
-    let path = spli.next().expect("Error: getting next");
+    let method = spli.next().expect("Error: getting method");
+    let path = spli.next().expect("Error: getting path");
 
-    let mut folder_path = String::new();
+    let mut directory_path = String::new();
     let mut found = false;
     for argument in env::args() {
         if argument == "--directory" {
             found = true
         } else if found {
-            folder_path = argument;
+            directory_path = argument;
         }
     }
-    println!("{}", folder_path);
-    if path.starts_with("/files/") {
+    if method == "POST" && path.starts_with("/files/") {
         let filename = path.trim_start_matches("/files/");
         let mut path = PathBuf::new();
-        path.push(folder_path);
+        path.push(directory_path);
+        path.push(filename);
+        let mut file = File::create(path).expect("error creating file");
+        let file_content = string_content.split("\r\n\r\n").skip(1).next().unwrap();
+        file.write(file_content.as_bytes()).unwrap();
+    } else if method == "GET" && path.starts_with("/files/") {
+        let filename = path.trim_start_matches("/files/");
+        let mut path = PathBuf::new();
+        path.push(directory_path);
         path.push(filename);
         match fs::read_to_string(path) {
             Ok(file_str) => {
