@@ -57,13 +57,10 @@ fn handle_connection(mut stream: TcpStream) {
     let method = spli.next().expect("Error: getting method");
     let path = spli.next().expect("Error: getting path");
 
-    let mut directory_path = String::new();
-    let mut found = false;
-    for argument in env::args() {
-        if argument == "--directory" {
-            found = true
-        } else if found {
-            directory_path = argument;
+    let mut directory_path = String::from("assets");
+    for (i, argument) in env::args().enumerate() {
+        if argument == "--directory" && i + 1 < env::args().len() {
+            directory_path = env::args().nth(i + 1).unwrap();
         }
     }
     if method == "POST" && path.starts_with("/files/") {
