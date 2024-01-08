@@ -35,6 +35,7 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let not_found_response = "HTTP/1.1 404 Not Found\r\n\r\n";
     let ok_response = "HTTP/1.1 200 OK\r\n\r\n";
+    let created_response = "HTTP/1.1 201 Created\r\n\r\n";
 
     let mut buffer = [0u8; 1024];
     // reading from stream to the buffer
@@ -77,6 +78,7 @@ fn handle_connection(mut stream: TcpStream) {
         let file_bytes = file_content.as_bytes().slice(0..content_length);
 
         file.write(file_bytes).unwrap();
+        stream.write(created_response.as_bytes()).unwrap();
     } else if method == "GET" && path.starts_with("/files/") {
         let filename = path.trim_start_matches("/files/");
         let mut path = PathBuf::new();
@@ -126,9 +128,7 @@ fn handle_connection(mut stream: TcpStream) {
             .expect("Error: writing to the stream");
     } else if path != "/" {
         stream.write(not_found_response.as_bytes()).unwrap();
-        println!("accepted new connection");
     } else {
         stream.write(ok_response.as_bytes()).unwrap();
-        println!("accepted new connection");
     }
 }
