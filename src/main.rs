@@ -9,6 +9,8 @@ use std::{
     thread,
 };
 
+use nom::Slice;
+
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
@@ -42,6 +44,12 @@ fn handle_connection(mut stream: TcpStream) {
     println!("{}", string_content);
     let mut spli = string_content.split(' ');
 
+    // constructing the header
+    let headers: HashMap<&str, &str> = string_content
+        .lines()
+        .skip(1)
+        .filter_map(|line| return line.split_once(": "))
+        .collect();
     // &str vs String
     // &str is static size string in stack
     // String dynamic string in the heap
@@ -62,9 +70,13 @@ fn handle_connection(mut stream: TcpStream) {
         let mut path = PathBuf::new();
         path.push(directory_path);
         path.push(filename);
+        let content_length: usize = headers.get("Content-Length").unwrap().parse().unwrap();
+
         let mut file = File::create(path).expect("error creating file");
         let file_content = string_content.split("\r\n\r\n").skip(1).next().unwrap();
-        file.write(file_content.as_bytes()).unwrap();
+        let file_bytes = file_content.as_bytes().slice(0..content_length);
+
+        file.write(file_bytes).unwrap();
     } else if method == "GET" && path.starts_with("/files/") {
         let filename = path.trim_start_matches("/files/");
         let mut path = PathBuf::new();
@@ -87,11 +99,6 @@ fn handle_connection(mut stream: TcpStream) {
             }
         }
     } else if path == "/user-agent" {
-        let headers: HashMap<&str, &str> = string_content
-            .lines()
-            .skip(1)
-            .filter_map(|line| return line.split_once(": "))
-            .collect();
         let user_agent = headers.get("User-Agent").unwrap();
 
         let response = format!(
