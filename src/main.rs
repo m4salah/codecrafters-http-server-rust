@@ -1,6 +1,4 @@
-// Uncomment this block to pass the first stage
 use std::{
-    collections::HashMap,
     env,
     fs::{self, File},
     io::{Read, Write},
@@ -9,14 +7,14 @@ use std::{
     thread,
 };
 
+use http::{methods::Method, request::Request};
 use nom::Slice;
 
+mod http;
+
 fn main() {
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
 
-    // Uncomment this block to pass the first stage
-    //
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
     loop {
@@ -40,22 +38,7 @@ fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0u8; 1024];
     // reading from stream to the buffer
     stream.read(&mut buffer).expect("ERROR: reading stream");
-    let string_content = String::from_utf8_lossy(&buffer);
-
-    println!("{}", string_content);
-    let mut spli = string_content.split(' ');
-
-    // constructing the header
-    let headers: HashMap<&str, &str> = string_content
-        .lines()
-        .skip(1)
-        .filter_map(|line| return line.split_once(": "))
-        .collect();
-    // &str vs String
-    // &str is static size string in stack
-    // String dynamic string in the heap
-    let method = spli.next().expect("Error: getting method");
-    let path = spli.next().expect("Error: getting path");
+    let string_content = String::from_utf8(buffer.to_vec()).unwrap();
 
     let mut directory_path = String::from("assets");
     for (i, argument) in env::args().enumerate() {
@@ -63,42 +46,56 @@ fn handle_connection(mut stream: TcpStream) {
             directory_path = env::args().nth(i + 1).unwrap();
         }
     }
-    if method == "POST" && path.starts_with("/files/") {
-        let filename = path.trim_start_matches("/files/");
-        let mut path = PathBuf::new();
-        path.push(directory_path);
-        path.push(filename);
-        let content_length: usize = headers.get("Content-Length").unwrap().parse().unwrap();
 
-        let mut file = File::create(path).expect("error creating file");
-        let file_content = string_content.split("\r\n\r\n").skip(1).next().unwrap();
-        let file_bytes = file_content.as_bytes().slice(0..content_length);
+    let request = Request::from(string_content);
+    if request.path.starts_with("/files/") {
+        match request.method {
+            // for posting file
+            Method::Post => {
+                let request_body = request.body.unwrap();
+                let filename = request.path.trim_start_matches("/files/");
+                let mut path = PathBuf::new();
+                path.push(directory_path);
+                path.push(filename);
+                let content_length: usize = request
+                    .headers
+                    .get("Content-Length")
+                    .unwrap()
+                    .parse()
+                    .unwrap();
 
-        file.write(file_bytes).unwrap();
-        stream.write(created_response.as_bytes()).unwrap();
-    } else if method == "GET" && path.starts_with("/files/") {
-        let filename = path.trim_start_matches("/files/");
-        let mut path = PathBuf::new();
-        path.push(directory_path);
-        path.push(filename);
-        match fs::read_to_string(path) {
-            Ok(file_str) => {
-                let response = format!(
+                let mut file = File::create(path).expect("error creating file");
+                let file_bytes = request_body.as_bytes().slice(0..content_length);
+
+                file.write(file_bytes).unwrap();
+                stream.write(created_response.as_bytes()).unwrap();
+            }
+            // for getting file
+            Method::Get => {
+                let filename = request.path.trim_start_matches("/files/");
+                let mut path = PathBuf::new();
+                path.push(directory_path);
+                path.push(filename);
+                match fs::read_to_string(path) {
+                    Ok(file_str) => {
+                        let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n{}\r\n",
                     file_str.as_bytes().len(),
                     file_str
                 );
-                stream
-                    .write(response.as_bytes())
-                    .expect("Error: writing to the stream");
-            }
-            Err(_) => {
-                stream.write(not_found_response.as_bytes()).unwrap();
-                println!("accepted new connection");
+                        stream
+                            .write(response.as_bytes())
+                            .expect("Error: writing to the stream");
+                    }
+                    Err(_) => {
+                        stream.write(not_found_response.as_bytes()).unwrap();
+                        println!("accepted new connection");
+                    }
+                }
             }
         }
-    } else if path == "/user-agent" {
-        let user_agent = headers.get("User-Agent").unwrap();
+    } else if request.path == "/user-agent" {
+        let user_agent = request.headers.get("User-Agent").unwrap();
 
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n",
@@ -110,8 +107,8 @@ fn handle_connection(mut stream: TcpStream) {
         stream
             .write(response.as_bytes())
             .expect("Error: writing to the stream");
-    } else if path.starts_with("/echo/") {
-        let echo_str = path.trim_start_matches("/echo/");
+    } else if request.path.starts_with("/echo/") {
+        let echo_str = request.path.trim_start_matches("/echo/");
 
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n",
@@ -123,7 +120,7 @@ fn handle_connection(mut stream: TcpStream) {
         stream
             .write(response.as_bytes())
             .expect("Error: writing to the stream");
-    } else if path != "/" {
+    } else if request.path != "/" {
         stream.write(not_found_response.as_bytes()).unwrap();
     } else {
         stream.write(ok_response.as_bytes()).unwrap();
