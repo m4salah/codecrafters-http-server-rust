@@ -7,8 +7,12 @@ use std::{
     thread,
 };
 
-use http::{methods::Method, request::Request};
-use nom::Slice;
+use http::{
+    methods::Method,
+    request::Request,
+    response::{HttpStatus, Response},
+};
+use nom::{AsBytes, Slice};
 
 mod http;
 
@@ -31,10 +35,6 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let not_found_response = "HTTP/1.1 404 Not Found\r\n\r\n";
-    let ok_response = "HTTP/1.1 200 OK\r\n\r\n";
-    let created_response = "HTTP/1.1 201 Created\r\n\r\n";
-
     let mut buffer = [0u8; 1024];
     // reading from stream to the buffer
     stream.read(&mut buffer).expect("ERROR: reading stream");
@@ -68,7 +68,9 @@ fn handle_connection(mut stream: TcpStream) {
                 let file_bytes = request_body.as_bytes().slice(0..content_length);
 
                 file.write(file_bytes).unwrap();
-                stream.write(created_response.as_bytes()).unwrap();
+
+                let response = Response::new(HttpStatus::Created);
+                stream.write(response.into_response().as_bytes()).unwrap();
             }
             // for getting file
             Method::Get => {
@@ -78,17 +80,21 @@ fn handle_connection(mut stream: TcpStream) {
                 path.push(filename);
                 match fs::read_to_string(path) {
                     Ok(file_str) => {
-                        let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n{}\r\n",
-                    file_str.as_bytes().len(),
-                    file_str
-                );
-                        stream
-                            .write(response.as_bytes())
-                            .expect("Error: writing to the stream");
+                        let response = Response::new(HttpStatus::Ok)
+                            .add_header(
+                                "Content-Type".to_string(),
+                                "application/octet-stream".to_string(),
+                            )
+                            .add_header(
+                                "Content-Length".to_string(),
+                                file_str.as_bytes().len().to_string(),
+                            )
+                            .set_body(file_str);
+                        stream.write(response.into_response().as_bytes()).unwrap();
                     }
                     Err(_) => {
-                        stream.write(not_found_response.as_bytes()).unwrap();
+                        let response = Response::new(HttpStatus::NotFound);
+                        stream.write(response.into_response().as_bytes()).unwrap();
                         println!("accepted new connection");
                     }
                 }
@@ -97,32 +103,30 @@ fn handle_connection(mut stream: TcpStream) {
     } else if request.path == "/user-agent" {
         let user_agent = request.headers.get("User-Agent").unwrap();
 
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n",
-            user_agent.as_bytes().len(),
-            user_agent
-        );
-
-        println!("response: {}", response);
-        stream
-            .write(response.as_bytes())
-            .expect("Error: writing to the stream");
+        let response = Response::new(HttpStatus::Ok)
+            .add_header("Content-Type".to_string(), "text/plain".to_string())
+            .add_header(
+                "Content-Length".to_string(),
+                user_agent.as_bytes().len().to_string(),
+            )
+            .set_body(user_agent.to_string());
+        stream.write(response.into_response().as_bytes()).unwrap();
     } else if request.path.starts_with("/echo/") {
         let echo_str = request.path.trim_start_matches("/echo/");
 
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}\r\n",
-            echo_str.as_bytes().len(),
-            echo_str
-        );
-
-        println!("response: {}", response);
-        stream
-            .write(response.as_bytes())
-            .expect("Error: writing to the stream");
+        let response = Response::new(HttpStatus::Ok)
+            .add_header("Content-Type".to_string(), "text/plain".to_string())
+            .add_header(
+                "Content-Length".to_string(),
+                echo_str.as_bytes().len().to_string(),
+            )
+            .set_body(echo_str.to_string());
+        stream.write(response.into_response().as_bytes()).unwrap();
     } else if request.path != "/" {
-        stream.write(not_found_response.as_bytes()).unwrap();
+        let response = Response::new(HttpStatus::NotFound);
+        stream.write(response.into_response().as_bytes()).unwrap();
     } else {
-        stream.write(ok_response.as_bytes()).unwrap();
+        let response = Response::new(HttpStatus::Ok);
+        stream.write(response.into_response().as_bytes()).unwrap();
     }
 }
