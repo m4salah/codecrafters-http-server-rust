@@ -113,13 +113,20 @@ fn handle_connection(mut stream: TcpStream) {
         } else if request.path == "/user-agent" {
             let user_agent = request.headers.get("User-Agent").unwrap();
 
-            let response = Response::new(HttpStatus::Ok)
+            let mut response = Response::new(HttpStatus::Ok)
                 .add_header("Content-Type".to_string(), "text/plain".to_string())
                 .add_header(
                     "Content-Length".to_string(),
                     user_agent.as_bytes().len().to_string(),
                 )
                 .set_body(user_agent.to_string());
+
+            if let Some(close) = request.headers.get("Connection")
+                && close == "close"
+            {
+                keep_conn = false;
+                response = response.add_header("Connection".to_string(), "close".to_string())
+            }
             stream.write(response.into_response().as_bytes()).unwrap();
         } else if request.path.starts_with("/echo/") {
             let echo_str = request.path.trim_start_matches("/echo/");
@@ -156,7 +163,7 @@ fn handle_connection(mut stream: TcpStream) {
 
             stream.write(response.into_response().as_bytes()).unwrap();
         } else if request.path != "/" {
-            let mut response = Response::new(HttpStatus::NotFound);
+            let response = Response::new(HttpStatus::NotFound);
             stream.write(response.into_response().as_bytes()).unwrap();
         } else {
             let mut response = Response::new(HttpStatus::Ok);
