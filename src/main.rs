@@ -37,7 +37,11 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
+    let mut keep_conn = true;
     loop {
+        if !keep_conn {
+            break;
+        }
         let mut buffer = [0u8; 1024];
         // reading from stream to the buffer
         stream.read(&mut buffer).expect("ERROR: reading stream");
@@ -123,6 +127,14 @@ fn handle_connection(mut stream: TcpStream) {
             let mut response = Response::new(HttpStatus::Ok)
                 .add_header("Content-Type".to_string(), "text/plain".to_string())
                 .set_body(echo_str.to_string());
+
+            println!("{:#?}", request.headers);
+            if let Some(close) = request.headers.get("Connection")
+                && close == "close"
+            {
+                keep_conn = false;
+                response = response.add_header("Connection".to_string(), "close".to_string())
+            }
             if let Some(gzip) = request.headers.get("Accept-Encoding")
                 && gzip.contains("gzip")
             {
@@ -141,12 +153,19 @@ fn handle_connection(mut stream: TcpStream) {
                     response.add_header("Content-Length".to_string(), echo_str.len().to_string());
                 response = response.set_body(echo_str.to_string());
             }
+
             stream.write(response.into_response().as_bytes()).unwrap();
         } else if request.path != "/" {
-            let response = Response::new(HttpStatus::NotFound);
+            let mut response = Response::new(HttpStatus::NotFound);
             stream.write(response.into_response().as_bytes()).unwrap();
         } else {
-            let response = Response::new(HttpStatus::Ok);
+            let mut response = Response::new(HttpStatus::Ok);
+            if let Some(close) = request.headers.get("Connection")
+                && close == "close"
+            {
+                keep_conn = false;
+                response = response.add_header("Connection".to_string(), "close".to_string())
+            }
             stream.write(response.into_response().as_bytes()).unwrap();
         }
     }
