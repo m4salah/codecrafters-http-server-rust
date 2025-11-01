@@ -133,6 +133,8 @@ fn handle_connection(mut stream: TcpStream) {
             );
             response = response.set_body_bytes(compressed_bytes);
         } else {
+            response =
+                response.add_header("Content-Length".to_string(), echo_str.len().to_string());
             response = response.set_body(echo_str.to_string());
         }
         stream.write(response.into_response().as_bytes()).unwrap();
