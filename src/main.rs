@@ -114,13 +114,18 @@ fn handle_connection(mut stream: TcpStream) {
     } else if request.path.starts_with("/echo/") {
         let echo_str = request.path.trim_start_matches("/echo/");
 
-        let response = Response::new(HttpStatus::Ok)
+        let mut response = Response::new(HttpStatus::Ok)
             .add_header("Content-Type".to_string(), "text/plain".to_string())
             .add_header(
                 "Content-Length".to_string(),
                 echo_str.as_bytes().len().to_string(),
             )
             .set_body(echo_str.to_string());
+        if let Some(gzip) = request.headers.get("Accept-Encoding")
+            && gzip == &"gzip"
+        {
+            response = response.add_header("Content-Encoding".to_string(), "gzip".to_string());
+        }
         stream.write(response.into_response().as_bytes()).unwrap();
     } else if request.path != "/" {
         let response = Response::new(HttpStatus::NotFound);
