@@ -122,7 +122,7 @@ fn handle_connection(mut stream: TcpStream) {
             )
             .set_body(echo_str.to_string());
         if let Some(gzip) = request.headers.get("Accept-Encoding")
-            && gzip == &"gzip"
+            && gzip.contains("gzip")
         {
             response = response.add_header("Content-Encoding".to_string(), "gzip".to_string());
         }
