@@ -5,9 +5,15 @@ pub enum HttpStatus {
     Created,
     NotFound,
 }
+
+pub enum Body {
+    Text(String),
+    Binary(Vec<u8>),
+}
+
 pub struct Response {
     status_code: HttpStatus,
-    body: Option<String>,
+    body: Option<Body>,
     headers: Option<HashMap<String, String>>,
 }
 
@@ -21,8 +27,13 @@ impl Response {
     }
 
     pub fn set_body(mut self, body: String) -> Self {
-        self.body = Some(body);
-        return self;
+        self.body = Some(Body::Text(body));
+        self
+    }
+
+    pub fn set_body_bytes(mut self, body: Vec<u8>) -> Self {
+        self.body = Some(Body::Binary(body));
+        self
     }
 
     pub fn add_header(mut self, key: String, value: String) -> Self {
@@ -38,38 +49,35 @@ impl Response {
     }
 
     pub fn into_response(self) -> Vec<u8> {
-        let mut response_str = String::new();
-        match self.status_code {
-            HttpStatus::Ok => {
-                response_str.push_str("HTTP/1.1 200 OK\r\n");
-            }
-            HttpStatus::Created => {
-                response_str.push_str("HTTP/1.1 201 Created\r\n");
-            }
-            HttpStatus::NotFound => {
-                response_str.push_str("HTTP/1.1 404 Not Found\r\n");
+        let mut response = Vec::new();
+        // Status line
+        let status_line = match self.status_code {
+            HttpStatus::Ok => "HTTP/1.1 200 OK\r\n",
+            HttpStatus::Created => "HTTP/1.1 201 Created\r\n",
+            HttpStatus::NotFound => "HTTP/1.1 404 Not Found\r\n",
+        };
+        response.extend_from_slice(status_line.as_bytes());
+
+        // Headers
+        if let Some(headers) = self.headers {
+            for (k, v) in headers {
+                response.extend_from_slice(format!("{}: {}\r\n", k, v).as_bytes());
             }
         }
 
-        match self.headers {
-            Some(headers) => {
-                for (k, v) in headers {
-                    response_str.push_str(format!("{}: {}\r\n", k, v).as_str());
+        response.extend_from_slice(b"\r\n");
+
+        // Body
+        if let Some(body) = self.body {
+            match body {
+                Body::Text(text) => {
+                    response.extend_from_slice(text.as_bytes());
                 }
-                response_str.push_str("\r\n");
-            }
-            None => {
-                response_str.push_str("\r\n");
+                Body::Binary(bytes) => {
+                    response.extend_from_slice(&bytes);
+                }
             }
         }
-
-        match self.body {
-            Some(body) => {
-                response_str.push_str(format!("{}\r\n", body).as_str());
-            }
-            None => {}
-        }
-        response_str.push_str("\r\n");
-        response_str.into_bytes()
+        response
     }
 }
