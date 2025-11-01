@@ -121,10 +121,10 @@ fn handle_connection(mut stream: TcpStream) {
                 echo_str.as_bytes().len().to_string(),
             )
             .set_body(echo_str.to_string());
-        if let Some(gzip) = request.headers.get("Accept-Encoding")
-            && gzip == &"gzip"
-        {
-            response = response.add_header("Content-Encoding".to_string(), "gzip".to_string());
+        if let Some(gzip) = request.headers.get("Accept-Encoding") {
+            if gzip == &"gzip" {
+                response = response.add_header("Content-Encoding".to_string(), "gzip".to_string());
+            }
         }
         stream.write(response.into_response().as_bytes()).unwrap();
     } else if request.path != "/" {
